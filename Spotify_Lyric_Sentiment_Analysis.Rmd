@@ -1,0 +1,40 @@
+---
+title: "Spotify Sentinment Analysis"
+author: "John Rollman"
+date: "7/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Packages  
+
+```{r message=FALSE, warning=FALSE, error=FALSE}
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(janeaustenr)
+```
+
+
+# Import Data  
+Courtesy of [Derek Zhao](https://github.com/zhao1701)  
+```{r}
+spotDat <- read.csv("billboard-lyrics-spotify.csv") 
+spotSent <- spotDat %>%
+  select(c(artist_base,song,lyrics)) %>%
+  unnest_tokens(word, lyrics)
+```
+
+
+```{r}
+trial1 <- spotSent %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index = song, artist_base) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  mutate(method = "AFINN")
+```
+
+
