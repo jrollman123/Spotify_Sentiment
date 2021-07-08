@@ -101,7 +101,7 @@ ggplot(spotDat1, aes(net_sent)) +
   guides(alpha='none') +
   labs(title = 'Distributions of Billboard Top 100 Lyrical Sentiments', x = 'Net Lyrical Sentiment')
 
-#Performing a Simple Linear Regression of Century on Net_Sent using OLS (Sorry boot-campers, no gradient descent for this test)
+#Performing a Simple Linear Regression of Century on Net_Sent using OLS (Sorry, no gradient descent for this test)
 htest <- lm(net_sent ~ century, data=spotDat1)
 summary(htest)
 
@@ -130,7 +130,7 @@ The reason this interests me is because words matter. Psychologists agree that o
 ```{r eval=FALSE, echo=FALSE}
 
    file.rename(from="Spotify_Lyric_Sentiment_Analysis.md", 
-               to="README.md"
+               to="README.md")
                
 ```
 
