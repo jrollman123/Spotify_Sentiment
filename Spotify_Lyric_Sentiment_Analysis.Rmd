@@ -2,39 +2,141 @@
 title: "Spotify Sentinment Analysis"
 author: "John Rollman"
 date: "7/7/2021"
-output: html_document
+output: 
+  rmarkdown::github_document:
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    toc: yes
+    toc_depth: '4'
+    toc_float: yes
+always_allow_html: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Packages  
+# Introduction  
+For this analysis I have a couple goals I would like to work on.
 
+1. Use NLP sentiment analysis on top 100 billboard songs to determine lyric sentiment.
+    + Have lyrical sentiments over time become more or less positive?
+    + Is the current century statistically different from the last?
+2. Analyze song quality markers to determine if there is any correlation to sentiment.
+
+
+# Packages  
 ```{r message=FALSE, warning=FALSE, error=FALSE}
 library(tidyverse)
 library(tidytext)
 library(textdata)
-library(janeaustenr)
 ```
 
 
 # Import Data  
 Courtesy of [Derek Zhao](https://github.com/zhao1701)  
-```{r}
+```{r message=FALSE, warning=FALSE, error=FALSE}
+#Read CSV
 spotDat <- read.csv("billboard-lyrics-spotify.csv") 
+
+#Tokenize Lyrics
 spotSent <- spotDat %>%
   select(c(artist_base,song,lyrics)) %>%
   unnest_tokens(word, lyrics)
 ```
 
-
-```{r}
+# Run Sentiment Analysis  
+```{r message=FALSE, warning=FALSE, error=FALSE}
+#Calculate sentiment by song/artist
 trial1 <- spotSent %>% 
-  inner_join(get_sentiments("afinn")) %>% 
+  inner_join(get_sentiments("afinn"), by = 'word') %>% 
   group_by(index = song, artist_base) %>% 
   summarise(sentiment = sum(value)) %>% 
   mutate(method = "AFINN")
 ```
+
+# Analyze Initial Results  
+```{r message=FALSE, warning=FALSE, error=FALSE}
+#Summarize sentiment for each year
+spotDat1 <- spotDat %>%
+  inner_join(trial1, by = c('song'='index','artist_base'='artist_base')) %>%
+  group_by(year) %>%
+  summarise(net_sent = sum(sentiment), avg_sent = mean(sentiment)) %>%
+  mutate(net_col = if_else(net_sent>=0,'Positive','Negative'),
+         avg_col = if_else(avg_sent>=0,'Positive','Negative'),
+         century = if_else(year>=2000,'21st Century','20th Century'))
+
+#Plot net sentiment and avg sentiment over the years
+ggplot(spotDat1, aes(x=factor(year), y=net_sent)) +
+  geom_col(width = 1, aes(fill=net_col)) +
+  scale_x_discrete(breaks = spotDat1$year[c(T,F,F,F,F)]) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  labs(x = 'Billboard Top 100 Year', y = 'Net Lyrical Sentiment Value') +
+  scale_fill_discrete(name='Net Lyrical Sentiment') + 
+  theme(panel.border = element_blank(), panel.grid.major.x = element_line( size=.1, color="white" ), panel.grid.major.y = element_blank(),
+  panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+
+# ggplot(spotDat1, aes(x=factor(year), y=avg_sent)) +
+#   geom_col(width = 1, aes(fill=avg_col)) +
+#   scale_x_discrete(breaks = spotDat1$year[c(T,F,F,F,F)]) +
+#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+#   labs(x = 'Billboard Top 100 Year', y = 'Avg Lyrical Sentiment Value') +
+#   scale_fill_discrete(name='Avg Lyrical Sentiment') + 
+#   theme(panel.border = element_blank(), panel.grid.major.x = element_line( size=.1, color="white" ), panel.grid.major.y = element_blank(),
+#   panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))
+ 
+#Hypothesis: Are 21st century Top 100 Songs less positive than the latter half of the 20th century? A simple t test could be sufficient.
+ggplot(spotDat1, aes(net_sent)) +
+  geom_density(aes(group = factor(century), fill = factor(century), alpha=.5)) + 
+  theme_light() +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(), 
+        axis.ticks.y=element_blank()) +
+  scale_fill_discrete(name='Century') + 
+  guides(alpha='none') +
+  labs(title = 'Distributions of Billboard Top 100 Lyrical Sentiments', x = 'Net Lyrical Sentiment')
+
+#Performing a Simple Linear Regression of Century on Net_Sent using OLS (Sorry boot-campers, no gradient descent for this test)
+htest <- lm(net_sent ~ century, data=spotDat1)
+summary(htest)
+
+#T-test indicates a significant relationship between century and lyrical sentiment
+anova(htest)
+
+#Coeffecients
+htest$coefficients
+
+
+```
+
+## Part 1 Summary  
+### Conclusions  
+For the majority of the last 50+ years, the lyrical sentiment of the Billboard Top 100 has been generally 'positive'. In 1998, lyrical sentiment dipped into the negatives for a year, followed by a resurgence of positive sentiment. In 2000, there was a drastic shift back to positive only to slowly dwindle back down. Overall, the 21st century has seen song lyrics become overall less positive. It is important to remember that this is only the Billboard's Top 100 and the sentiment is simply a reflection of the lyrics not the music itself. Have you ever listened to a song that you considered a "banger" only to listen to the lyrics and realize how dark or sad the song may be. This is what I would like to dig into further. How the lyrical sentiment correlates with the music features. Using a different sentiment analysis lexicon we can dig into which emotions are generally being displayed in these songs, such as joy, anger, fear, etc. More parts to come!
+
+
+### The Big Picture  
+The reason this interests me is because words matter. Psychologists agree that our mental health can be affected by the words we use to others. Thus, despite songs being upbeat or not, does the inherent lyrical sentiment affect us in a physiological way. Does listening to a song we think evokes upbeat positivity but lyrically conveys negativity, act as a detriment to our mental health.
+
+
+
+
+
+
+```{r eval=FALSE, echo=FALSE}
+
+   file.rename(from="Spotify_Lyric_Sentiment_Analysis.md", 
+               to="README.md"
+               
+```
+
+
+
+
+
 
 
