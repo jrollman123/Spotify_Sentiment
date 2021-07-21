@@ -5,12 +5,16 @@ John Rollman
 
 -   [Introduction](#introduction)
 -   [Packages](#packages)
--   [Import Data](#import-data)
--   [Run Sentiment Analysis](#run-sentiment-analysis)
--   [Analyze Initial Results](#analyze-initial-results)
+-   [Part 1](#part-1)
+    -   [Import Data](#import-data)
+    -   [Run Sentiment Analysis](#run-sentiment-analysis)
+    -   [Analyze Initial Results](#analyze-initial-results)
     -   [Part 1 Summary](#part-1-summary)
         -   [Conclusions](#conclusions)
         -   [The Big Picture](#the-big-picture)
+-   [Part 2](#part-2)
+    -   [NRC Lexicon Analysis](#nrc-lexicon-analysis)
+    -   [NRC Visualization](#nrc-visualization)
 
 # Introduction
 
@@ -29,9 +33,14 @@ For this analysis I have a couple goals I would like to work on.
 library(tidyverse)
 library(tidytext)
 library(textdata)
+library(wordcloud)
+library(reshape2)
+library(RColorBrewer)
 ```
 
-# Import Data
+# Part 1
+
+## Import Data
 
 Courtesy of [Derek Zhao](https://github.com/zhao1701)
 
@@ -45,7 +54,7 @@ spotSent <- spotDat %>%
   unnest_tokens(word, lyrics)
 ```
 
-# Run Sentiment Analysis
+## Run Sentiment Analysis
 
 ``` r
 #Calculate sentiment by song/artist
@@ -56,7 +65,7 @@ trial1 <- spotSent %>%
   mutate(method = "AFINN")
 ```
 
-# Analyze Initial Results
+## Analyze Initial Results
 
 ``` r
 #Summarize sentiment for each year
@@ -161,12 +170,12 @@ htest$coefficients
 ### Conclusions
 
 For the majority of the last 50+ years, the lyrical sentiment of the
-Billboard Top 100 has been generally ‘positive’. In 1998, lyrical
+Billboard Hot 100 has been generally ‘positive’. In 1998, lyrical
 sentiment dipped into the negatives for a year, followed by a resurgence
 of positive sentiment. In 2000, there was a drastic shift back to
 positive only to slowly dwindle back down. Overall, the 21st century has
 seen song lyrics become overall less positive. It is important to
-remember that this is only the Billboard’s Top 100 and the sentiment is
+remember that this is only the Billboard’s Hot 100 and the sentiment is
 simply a reflection of the lyrics not the music itself. Have you ever
 listened to a song that you considered a “banger” only to listen to the
 lyrics and realize how dark or sad the song may be. This is what I would
@@ -183,3 +192,77 @@ others. Thus, despite songs being upbeat or not, does the inherent
 lyrical sentiment affect us in a physiological way. Does listening to a
 song we think evokes upbeat positivity but lyrically conveys negativity,
 act as a detriment to our mental health.
+
+``` r
+spotSent_c <- spotSent %>%
+  inner_join(get_sentiments("bing"), by = 'word') %>% 
+  count(word, sentiment, sort = TRUE)
+
+spotSent_c %>% 
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("darkred", "lightblue"),
+                   max.words = 200)
+```
+
+![](Spotify_Lyric_Sentiment_Analysis_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
+# Part 2
+
+## NRC Lexicon Analysis
+
+``` r
+spotNRC <- spotSent %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  filter(!sentiment %in% c("positive","negative")) %>%
+  mutate(method = "NRC") %>%
+  count(method,index = song, artist_base, sentiment) %>%
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0)
+```
+
+    ## Joining, by = "word"
+
+``` r
+#Summarize sentiment for each year as %
+spotDat_agg_p <- spotDat %>%
+  inner_join(spotNRC, by = c('song'='index','artist_base'='artist_base')) %>%
+  group_by(year) %>%
+  summarise_at(c("anger", "anticipation", 'disgust','fear','joy','sadness','surprise','trust'), sum, na.rm = TRUE) %>%
+  mutate(tot_words = (anger + anticipation + disgust + fear + joy + sadness + surprise + trust),
+         p_anger = anger/tot_words*100,
+         p_anticipation = anticipation/tot_words*100,
+         p_disgust = disgust/tot_words*100,
+         p_fear = fear/tot_words*100,
+         p_joy = joy/tot_words*100,
+         p_sadness = sadness/tot_words*100,
+         p_surprise = surprise/tot_words*100,
+         p_trust = trust/tot_words*100, .keep = 'unused') %>%
+  select(!tot_words) %>%
+  pivot_longer(!year, names_to = 'Sent_Type', values_to = 'Pct')
+  
+#Summarize sentiment for each year raw counts
+spotDat_agg <- spotDat %>%
+  inner_join(spotNRC, by = c('song'='index','artist_base'='artist_base')) %>%
+  group_by(year) %>%
+  summarise_at(c("anger", "anticipation", 'disgust','fear','joy','sadness','surprise','trust'), sum, na.rm = TRUE) %>%
+  pivot_longer(!year, names_to = 'Sent_Type', values_to = 'Count')
+```
+
+## NRC Visualization
+
+``` r
+ggplot(spotDat_agg, aes(x=year, y=Count, fill = factor(Sent_Type))) +
+  geom_area(position="fill") +
+  scale_fill_brewer(palette="Dark2")
+```
+
+![](Spotify_Lyric_Sentiment_Analysis_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+
+``` r
+ggplot(spotDat_agg_p, aes(x=year, y=Pct, color = factor(Sent_Type))) +
+  geom_line(size = 1, alpha = .7) +
+  scale_color_brewer(palette="Dark2")
+```
+
+![](Spotify_Lyric_Sentiment_Analysis_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
